@@ -17,8 +17,8 @@ pub enum TermType {
 }
 
 pub fn get_type(term: NifTerm) -> TermType {
-    let c_term = term.as_c_arg();
-    let c_env = term.get_env().as_c_arg();
+    let c_term = term.raw();
+    let c_env = term.get_env().raw();
 
     if check::is_atom(c_env, c_term) {
         TermType::Atom
@@ -50,7 +50,7 @@ pub fn get_type(term: NifTerm) -> TermType {
 macro_rules! impl_check {
     ($check_fun:ident) => {
         pub fn $check_fun(self) -> bool {
-            check::$check_fun(self.get_env().as_c_arg(), self.as_c_arg())
+            check::$check_fun(self.get_env().raw(), self.raw())
         }
     }
 }

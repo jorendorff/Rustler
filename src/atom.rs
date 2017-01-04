@@ -4,6 +4,7 @@ use std::sync::Mutex;
 use std::ops::DerefMut;
 
 use super::{ NifTerm, NifEnv, NifResult, NifError };
+use wrapper::RawNifTerm;
 use wrapper::nif_interface::{
     NIF_ENV,
     NIF_TERM,
@@ -24,9 +25,14 @@ impl NifAtom {
         self.term
     }
 
-    pub fn to_term<'a>(self, env: &'a NifEnv) -> NifTerm<'a> {
-        NifTerm::new(env, self.term)
+    pub fn as_raw_nif_term<'a>(self) -> RawNifTerm<'a> {
+        unsafe { RawNifTerm::new(self.term) }
     }
+
+    pub fn to_term<'a>(self, env: NifEnv<'a>) -> NifTerm<'a> {
+        NifTerm::new(env, self.as_raw_nif_term())
+    }
+
     unsafe fn make_atom(env: NIF_ENV, name: &str) -> Self {
         NifAtom::from_nif_term(enif_make_atom_len(env, name.as_ptr() as *const u8, name.len() as size_t))
     }
@@ -36,9 +42,10 @@ impl NifAtom {
             term: term
         }
     }
+
     pub fn from_term(term: NifTerm) -> NifResult<Self> {
         match term.is_atom() {
-            true => Ok(unsafe { NifAtom::from_nif_term(term.as_c_arg()) }),
+            true => Ok(unsafe { NifAtom::from_nif_term(term.raw().as_c_arg()) }),
             false => Err(NifError::BadArg)
         }
     }
@@ -55,17 +62,18 @@ impl<'a> NifTerm<'a> {
     ///
     /// Will return None if the term is not an atom.
     pub fn atom_to_string(&self) -> NifResult<String> {
-        ::wrapper::atom::get_atom(self.get_env().as_c_arg(), self.as_c_arg())
+        ::wrapper::atom::get_atom(self.get_env().raw(), self.raw())
     }
 
 }
 
-pub fn is_atom(env: &NifEnv, term: NifTerm) -> bool {
-    ::wrapper::check::is_atom(env.as_c_arg(), term.as_c_arg())
+pub fn is_atom<'a>(env: NifEnv<'a>, term: NifTerm<'a>) -> bool {
+    ::wrapper::check::is_atom(env.raw(), term.raw())
 }
 
 pub fn is_truthy(term: NifTerm) -> bool {
-    !((term.as_c_arg() == get_atom("false").unwrap().as_c_arg()) || (term.as_c_arg() == get_atom("nil").unwrap().as_c_arg()))
+    !((term.raw().as_c_arg() == get_atom("false").unwrap().term) ||
+      (term.raw().as_c_arg() == get_atom("nil").unwrap().term))
 }
 
 // This should be safe to do because atoms are never removed/changed once they are created.

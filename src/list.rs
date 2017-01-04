@@ -3,6 +3,7 @@
 //! Right now the only supported way to read lists are through the NifListIterator.
 
 use super::{ NifTerm, NifError, NifResult, NifDecoder, NifEncoder, NifEnv };
+use wrapper::RawNifTerm;
 use ::wrapper::list;
 use ::wrapper::check;
 
@@ -46,8 +47,8 @@ pub struct NifListIterator<'a> {
 impl<'a> NifListIterator<'a> {
 
     fn new(term: NifTerm<'a>) -> Option<Self> {
-        let term_c = term.as_c_arg();
-        let env_c = term.get_env().as_c_arg();
+        let term_c = term.raw();
+        let env_c = term.get_env().raw();
         if check::is_list(env_c, term_c) || check::is_empty_list(env_c, term_c) {
             let iter = NifListIterator {
                 term: term,
@@ -65,7 +66,7 @@ impl<'a> Iterator for NifListIterator<'a> {
 
     fn next(&mut self) -> Option<NifTerm<'a>> {
         let env = self.term.get_env();
-        let cell = list::get_list_cell(env.as_c_arg(), self.term.as_c_arg());
+        let cell = list::get_list_cell(env.raw(), self.term.raw());
 
         match cell {
             Some((head, tail)) => {
@@ -73,7 +74,7 @@ impl<'a> Iterator for NifListIterator<'a> {
                 Some(NifTerm::new(self.term.get_env(), head))
             }
             None => {
-                if check::is_empty_list(env.as_c_arg(), self.term.as_c_arg()) {
+                if check::is_empty_list(env.raw(), self.term.raw()) {
                     // We reached the end of the list, finish the iterator.
                     None
                 } else {
@@ -94,17 +95,17 @@ impl<'a> NifDecoder<'a> for NifListIterator<'a> {
 }
 
 //impl<'a, T> NifEncoder for Iterator<Item = T> where T: NifEncoder {
-//    fn encode<'b>(&self, env: &'b NifEnv) -> NifTerm<'b> {
+//    fn encode<'b>(&self, env: NifEnv<'b>) -> NifTerm<'b> {
 //        let term_arr: Vec<::wrapper::nif_interface::NIF_TERM> =
-//            self.map(|x| x.encode(env).as_c_arg()).collect();
+//            self.map(|x| x.encode(env).raw()).collect();
 //    }
 //}
 
-impl<'a, T> NifEncoder for Vec<T> where T: NifEncoder {
-    fn encode<'b>(&self, env: &'b NifEnv) -> NifTerm<'b> {
-        let term_array: Vec<::wrapper::nif_interface::NIF_TERM> =
-            self.iter().map(|x| x.encode(env).as_c_arg()).collect();
-        NifTerm::new(env, list::make_list(env.as_c_arg(), &term_array))
+impl<T> NifEncoder for Vec<T> where T: NifEncoder {
+    fn encode<'a>(&self, env: NifEnv<'a>) -> NifTerm<'a> {
+        let term_array: Vec<RawNifTerm<'a>> =
+            self.iter().map(|x| x.encode(env).raw()).collect();
+        NifTerm::new(env, list::make_list(env.raw(), &term_array))
     }
 }
 
@@ -138,7 +139,7 @@ impl<'a> NifTerm<'a> {
     /// length(self_term)
     /// ```
     pub fn list_length(self) -> NifResult<usize> {
-        list::get_list_length(self.get_env().as_c_arg(), self.as_c_arg())
+        list::get_list_length(self.get_env().raw(), self.raw())
             .ok_or(NifError::BadArg)
     }
 
@@ -154,7 +155,7 @@ impl<'a> NifTerm<'a> {
     /// ```
     pub fn list_get_cell(self) -> NifResult<(NifTerm<'a>, NifTerm<'a>)> {
         let env = self.get_env();
-        list::get_list_cell(env.as_c_arg(), self.as_c_arg())
+        list::get_list_cell(env.raw(), self.raw())
             .map(|(t1, t2)| (NifTerm::new(env, t1), NifTerm::new(env, t2)))
             .ok_or(NifError::BadArg)
     }
@@ -164,7 +165,7 @@ impl<'a> NifTerm<'a> {
     /// Returns Err(NifError::BadArg) if the term is not a list.
     pub fn list_reverse(self) -> NifResult<NifTerm<'a>> {
         let env = self.get_env();
-        list::make_reverse_list(env.as_c_arg(), self.as_c_arg())
+        list::make_reverse_list(env.raw(), self.raw())
             .map(|t| NifTerm::new(env, t))
             .ok_or(NifError::BadArg)
     }
@@ -172,7 +173,7 @@ impl<'a> NifTerm<'a> {
     /// Adds `head` in a list cell with `self` as tail.
     pub fn list_prepend(self, head: NifTerm<'a>) -> NifTerm<'a> {
         let env = self.get_env();
-        let term = list::make_list_cell(env.as_c_arg(), head.as_c_arg(), self.as_c_arg());
+        let term = list::make_list_cell(env.raw(), head.raw(), self.raw());
         NifTerm::new(env, term)
     }
 

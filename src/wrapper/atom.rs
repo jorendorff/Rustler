@@ -1,9 +1,12 @@
+use super::{RawNifEnv, RawNifTerm};
 use super::nif_interface;
-use super::nif_interface::{ NIF_ENV, NIF_TERM, c_uint };
+use super::nif_interface::{ c_uint };
 use {NifResult, NifError};
 
-pub fn make_atom(env: NIF_ENV, name: &str) -> NIF_TERM {
-    unsafe { nif_interface::enif_make_atom_len(env, name.as_ptr() as *const u8, name.len() as usize) }
+pub fn make_atom<'a>(env: RawNifEnv<'a>, name: &str) -> RawNifTerm<'a> {
+    unsafe {
+        RawNifTerm::new(nif_interface::enif_make_atom_len(env.0, name.as_ptr() as *const u8, name.len() as usize))
+    }
 }
 
 /// Get the contents of this atom as a string.
@@ -15,12 +18,10 @@ pub fn make_atom(env: NIF_ENV, name: &str) -> NIF_TERM {
 ///
 /// `NifError::BadArg` if `term` is not an atom.
 ///
-pub fn get_atom(env: NIF_ENV, term: NIF_TERM) -> NifResult<String> {
+pub fn get_atom<'a>(env: RawNifEnv<'a>, term: RawNifTerm<'a>) -> NifResult<String> {
     // Determine the length of the atom, in bytes.
     let mut len = 0;
-    let success = unsafe {
-        nif_interface::enif_get_atom_length_latin1(env, term, &mut len)
-    };
+    let success = unsafe { nif_interface::enif_get_atom_length_latin1(env.0, term.0, &mut len) };
     if success == 0 {
         return Err(NifError::BadArg);
     }
@@ -29,12 +30,11 @@ pub fn get_atom(env: NIF_ENV, term: NIF_TERM) -> NifResult<String> {
     // enif_get_atom() writes a null terminated string,
     // so add 1 to the atom's length to make room for it.
     let mut bytes: Vec<u8> = Vec::with_capacity(len as usize + 1);
-    let nbytes = unsafe {
-        nif_interface::enif_get_atom_latin1(env, term, bytes.as_mut_ptr(), len + 1)
-    };
+    let nbytes = unsafe { nif_interface::enif_get_atom_latin1(env.0, term.0, bytes.as_mut_ptr(), len + 1) };
     assert!(nbytes as c_uint == len + 1);
+
+    // This is safe unless the VM is lying to us.
     unsafe {
-        // This is safe unless the VM is lying to us.
         bytes.set_len(len as usize);  // drop the null byte
     }
 

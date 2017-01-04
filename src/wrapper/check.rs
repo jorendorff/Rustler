@@ -1,10 +1,10 @@
-use ::wrapper::nif_interface::{ NIF_ENV, NIF_TERM };
+use ::wrapper::{RawNifEnv, RawNifTerm};
 use ::wrapper::nif_interface;
 
 macro_rules! impl_check_fun {
     ($name:ident, $inner:path) => {
-        pub fn $name(env: NIF_ENV, term: NIF_TERM) -> bool {
-            (unsafe { $inner(env, term) } == 1)
+        pub fn $name<'a>(env: RawNifEnv<'a>, term: RawNifTerm<'a>) -> bool {
+            (unsafe { $inner(env.0, term.0) } == 1)
         }
     }
 }

@@ -36,7 +36,7 @@ rustler_export_nifs!(
     Some(on_load)
 );
 
-fn on_load(env: &NifEnv, _load_info: NifTerm) -> bool {
+fn on_load(env: NifEnv, _load_info: NifTerm) -> bool {
     test_resource::on_load(env);
     test_atom::on_load(env);
     true

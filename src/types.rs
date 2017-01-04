@@ -1,9 +1,10 @@
 extern crate erlang_nif_sys;
 
 use super::{ NifEnv, NifTerm, NifError, NifResult };
+use wrapper::RawNifTerm;
 
 pub trait NifEncoder {
-    fn encode<'a>(&self, env: &'a NifEnv) -> NifTerm<'a>;
+    fn encode<'a>(&self, env: NifEnv<'a>) -> NifTerm<'a>;
 }
 pub trait NifDecoder<'a>: Sized+'a {
     fn decode(term: NifTerm<'a>) -> NifResult<Self>;
@@ -12,16 +13,20 @@ pub trait NifDecoder<'a>: Sized+'a {
 macro_rules! impl_number_transcoder {
     ($dec_type:ty, $nif_type:ty, $encode_fun:ident, $decode_fun:ident) => {
         impl NifEncoder for $dec_type {
-            fn encode<'a>(&self, env: &'a NifEnv) -> NifTerm<'a> {
+            fn encode<'a>(&self, env: NifEnv<'a>) -> NifTerm<'a> {
                 #![allow(unused_unsafe)]
-                NifTerm::new(env, unsafe { erlang_nif_sys::$encode_fun(env.as_c_arg(), *self as $nif_type) })
+                NifTerm::new(env, unsafe {
+                    RawNifTerm::new(erlang_nif_sys::$encode_fun(env.raw().as_c_arg(), *self as $nif_type))
+                })
             }
         }
         impl<'a> NifDecoder<'a> for $dec_type {
             fn decode(term: NifTerm) -> NifResult<$dec_type> {
                 #![allow(unused_unsafe)]
                 let mut res: $nif_type = Default::default();
-                if unsafe { erlang_nif_sys::$decode_fun(term.get_env().as_c_arg(), term.as_c_arg(), (&mut res) as *mut $nif_type) } == 0 {
+                if unsafe { erlang_nif_sys::$decode_fun(term.get_env().raw().as_c_arg(),
+                                                        term.raw().as_c_arg(),
+                                                        (&mut res) as *mut $nif_type) } == 0 {
                     return Err(NifError::BadArg);
                 }
                 Ok(res as $dec_type)
@@ -46,7 +51,7 @@ impl_number_transcoder!(f32, f64, enif_make_double, enif_get_double);
 
 use super::atom::{ get_atom };
 impl NifEncoder for bool {
-    fn encode<'a>(&self, env: &'a NifEnv) -> NifTerm<'a> {
+    fn encode<'a>(&self, env: NifEnv<'a>) -> NifTerm<'a> {
         // This should always succeed, if there these atoms
         // are missing, something is seriously wrong, worthy of a panic.
         if *self {
@@ -81,7 +86,7 @@ impl<'a> NifDecoder<'a> for &'a str {
 use std::io::Write;
 
 impl NifEncoder for str {
-    fn encode<'b>(&self, env: &'b NifEnv) -> NifTerm<'b> {
+    fn encode<'a>(&self, env: NifEnv<'a>) -> NifTerm<'a> {
         let str_len = self.len();
         let mut bin = match ::binary::OwnedNifBinary::alloc(str_len) {
             Some(bin) => bin,
@@ -93,10 +98,11 @@ impl NifEncoder for str {
 }
 
 impl<'a> NifEncoder for NifTerm<'a> {
-    fn encode<'b>(&self, env: &'b NifEnv) -> NifTerm<'b> {
+    fn encode<'b>(&self, env: NifEnv<'b>) -> NifTerm<'b> {
         self.in_env(env)
     }
 }
+
 impl<'a> NifDecoder<'a> for NifTerm<'a> {
     fn decode(term: NifTerm<'a>) -> NifResult<Self> {
         Ok(term)

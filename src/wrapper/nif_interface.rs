@@ -190,6 +190,7 @@ pub unsafe fn enif_keep_resource(obj: NIF_RESOURCE_HANDLE) {
 }
 
 pub use self::erlang_nif_sys::{
+    ErlNifBinary,
     ErlNifMapIterator,
     ErlNifMapIteratorEntry,
     enif_map_iterator_create,

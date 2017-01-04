@@ -1,4 +1,3 @@
-
 //! A NIF resource allows you to safely store rust structs in a term, and therefore keep it across
 //! NIF calls. The struct will be automatically dropped when the BEAM GC decides that there are no
 //! more references to the resource.
@@ -37,7 +36,7 @@ pub trait NifResourceTypeProvider: Sized {
 }
 
 impl<T> NifEncoder for ResourceCell<T> where T: NifResourceTypeProvider + Sync {
-    fn encode<'a>(&self, env: &'a NifEnv) -> NifTerm<'a> {
+    fn encode<'a>(&self, env: NifEnv<'a>) -> NifTerm<'a> {
         self.as_term(env)
     }
 }
@@ -50,9 +49,9 @@ impl<'a, T> NifDecoder<'a> for ResourceCell<T> where T: NifResourceTypeProvider 
 /// This is the function that gets called from resource_struct_init! in on_load to create a new
 /// resource type.
 #[doc(hidden)]
-pub fn open_struct_resource_type<T: NifResourceTypeProvider>(env: &NifEnv, name: &str,
+pub fn open_struct_resource_type<'a, T: NifResourceTypeProvider>(env: NifEnv<'a>, name: &str,
                                  flags: NifResourceFlags) -> Option<NifResourceType<T>> {
-    let res: Option<NIF_RESOURCE_TYPE> = ::wrapper::resource::open_resource_type(env.as_c_arg(), name, 
+    let res: Option<NIF_RESOURCE_TYPE> = ::wrapper::resource::open_resource_type(env.raw(), name, 
                                                                                  Some(T::destructor), flags);
     if res.is_some() {
         Some(NifResourceType {
@@ -100,7 +99,7 @@ impl<T> ResourceCell<T> where T: NifResourceTypeProvider + Sync {
     }
 
     fn from_term(term: NifTerm) -> Result<Self, NifError> {
-        let res_resource = match ::wrapper::resource::get_resource(term.get_env().as_c_arg(), term.as_c_arg(), T::get_type().res) {
+        let res_resource = match ::wrapper::resource::get_resource(term.get_env().raw(), term.raw(), T::get_type().res) {
             Some(res) => res,
             None => return Err(NifError::BadArg),
         };
@@ -112,8 +111,8 @@ impl<T> ResourceCell<T> where T: NifResourceTypeProvider + Sync {
         })
     }
 
-    fn as_term<'a>(&self, env: &'a NifEnv) -> NifTerm<'a> {
-        let raw_term = ::wrapper::resource::make_resource(env.as_c_arg(), self.raw);
+    fn as_term<'a>(&self, env: NifEnv<'a>) -> NifTerm<'a> {
+        let raw_term = ::wrapper::resource::make_resource(env.raw(), self.raw);
         NifTerm::new(env, raw_term)
     }
 
@@ -158,7 +157,7 @@ impl<T> Drop for ResourceCell<T> where T: NifResourceTypeProvider + Sync {
 macro_rules! resource_struct_init {
     ($struct_name:ident, $env: ident) => {
         {
-            static mut struct_type: Option<::rustler::resource::NifResourceType<$struct_name>> = None;
+            static mut STRUCT_TYPE: Option<::rustler::resource::NifResourceType<$struct_name>> = None;
 
             let temp_struct_type = 
                 match ::rustler::resource::open_struct_resource_type::<$struct_name>(
@@ -172,7 +171,7 @@ macro_rules! resource_struct_init {
                         return false;
                     }
                 };
-            unsafe { struct_type = Some(temp_struct_type) };
+            unsafe { STRUCT_TYPE = Some(temp_struct_type) };
 
             impl ::rustler::resource::NifResourceTypeProvider for $struct_name {
                 extern "C" fn destructor(
@@ -181,7 +180,7 @@ macro_rules! resource_struct_init {
                     unsafe { ::rustler::codegen_runtime::handle_drop_resource_struct_handle::<$struct_name>(env, obj) };
                 }
                 fn get_type<'a>() -> &'a ::rustler::resource::NifResourceType<Self> {
-                    unsafe { &struct_type }.as_ref().unwrap()
+                    unsafe { &STRUCT_TYPE }.as_ref().unwrap()
                 }
             }
         }

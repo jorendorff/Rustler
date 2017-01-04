@@ -3,8 +3,8 @@
 use super::{ NifEnv, NifTerm, NifResult, NifError, NifDecoder };
 use ::wrapper::map;
 
-pub fn map_new<'a>(env: &'a NifEnv) -> NifTerm<'a> {
-    NifTerm::new(env, map::map_new(env.as_c_arg()))
+pub fn map_new<'a>(env: NifEnv<'a>) -> NifTerm<'a> {
+    NifTerm::new(env, map::map_new(env.raw()))
 }
 
 /// ## Map terms
@@ -19,9 +19,9 @@ impl<'a> NifTerm<'a> {
     /// ```elixir
     /// Map.get(self_term, key)
     /// ```
-    pub fn map_get(self, key: NifTerm) -> NifResult<NifTerm<'a>> {
+    pub fn map_get(self, key: NifTerm<'a>) -> NifResult<NifTerm<'a>> {
         let env = self.get_env();
-        match ::wrapper::get_map_value(env.as_c_arg(), self.as_c_arg(), key.as_c_arg()) {
+        match ::wrapper::get_map_value(env.raw(), self.raw(), key.raw()) {
             Some(value) => Ok(NifTerm::new(env, value)),
             None => Err(NifError::BadArg),
         }
@@ -37,7 +37,7 @@ impl<'a> NifTerm<'a> {
     /// ```
     pub fn map_size(self) -> NifResult<usize> {
         let env = self.get_env();
-        map::get_map_size(env.as_c_arg(), self.as_c_arg()).ok_or(NifError::BadArg)
+        map::get_map_size(env.raw(), self.raw()).ok_or(NifError::BadArg)
     }
 
     /// Makes a copy of the self map term and sets key to value.
@@ -49,13 +49,13 @@ impl<'a> NifTerm<'a> {
     /// ```elixir
     /// Map.put(self_term, key, value)
     /// ```
-    pub fn map_put(self, key: NifTerm, value: NifTerm) -> NifResult<NifTerm<'a>> {
+    pub fn map_put(self, key: NifTerm<'a>, value: NifTerm<'a>) -> NifResult<NifTerm<'a>> {
         let map_env = self.get_env();
 
         assert!(map_env == key.get_env(), "key is from different environment as map");
         assert!(map_env == value.get_env(), "value is from different environment as map");
 
-        match map::map_put(map_env.as_c_arg(), self.as_c_arg(), key.as_c_arg(), value.as_c_arg()) {
+        match map::map_put(map_env.raw(), self.raw(), key.raw(), value.raw()) {
             Some(inner) => Ok(NifTerm::new(map_env, inner)),
             None => Err(NifError::BadArg),
         }
@@ -70,12 +70,12 @@ impl<'a> NifTerm<'a> {
     /// ```elixir
     /// Map.delete(self_term, key)
     /// ```
-    pub fn map_remove(self, key: NifTerm) -> NifResult<NifTerm<'a>> {
+    pub fn map_remove(self, key: NifTerm<'a>) -> NifResult<NifTerm<'a>> {
         let map_env = self.get_env();
 
         assert!(map_env == key.get_env(), "key is from different environment as map");
 
-        match map::map_remove(map_env.as_c_arg(), self.as_c_arg(), key.as_c_arg()) {
+        match map::map_remove(map_env.raw(), self.raw(), key.raw()) {
             Some(inner) => Ok(NifTerm::new(map_env, inner)),
             None => Err(NifError::BadArg),
         }
@@ -85,13 +85,13 @@ impl<'a> NifTerm<'a> {
     ///
     /// Returns Err(NifError::BadArg) if the term is not a map of if key
     /// doesn't exist.
-    pub fn map_update(self, key: NifTerm, new_value: NifTerm) -> NifResult<NifTerm<'a>> {
+    pub fn map_update(self, key: NifTerm<'a>, new_value: NifTerm<'a>) -> NifResult<NifTerm<'a>> {
         let map_env = self.get_env();
 
         assert!(map_env == key.get_env(), "key is from different environment as map");
         assert!(map_env == new_value.get_env(), "value is from different environment as map");
 
-        match map::map_update(map_env.as_c_arg(), self.as_c_arg(), key.as_c_arg(), new_value.as_c_arg()) {
+        match map::map_update(map_env.raw(), self.raw(), key.raw(), new_value.raw()) {
             Some(inner) => Ok(NifTerm::new(map_env, inner)),
             None => Err(NifError::BadArg),
         }
@@ -100,23 +100,22 @@ impl<'a> NifTerm<'a> {
 }
 
 pub struct NifMapIterator<'a> {
-    env: &'a NifEnv,
-    iter: map::ErlNifMapIterator
+    env: NifEnv<'a>,
+    iter: map::RawNifMapIterator<'a>
 }
 
 impl<'a> NifMapIterator<'a> {
     pub fn new(map: NifTerm<'a>) -> Option<NifMapIterator<'a>> {
         let env = map.get_env();
-        unsafe {
-            map::map_iterator_create(env.as_c_arg(), map.as_c_arg())
-        }.map(|iter| NifMapIterator { env: env, iter: iter })
+        map::map_iterator_create(env.raw(), map.raw())
+            .map(|iter| NifMapIterator { env: env, iter: iter })
     }
 }
 
 impl<'a> Drop for NifMapIterator<'a> {
     fn drop(&mut self) {
         unsafe {
-            map::map_iterator_destroy(self.env.as_c_arg(), &mut self.iter);
+            map::map_iterator_destroy(self.env.raw(), &mut self.iter);
         }
     }
 }
@@ -125,15 +124,12 @@ impl<'a> Iterator for NifMapIterator<'a> {
     type Item = (NifTerm<'a>, NifTerm<'a>);
 
     fn next(&mut self) -> Option<(NifTerm<'a>, NifTerm<'a>)> {
-        unsafe {
-            map::map_iterator_get_pair(self.env.as_c_arg(), &mut self.iter)
-        }.map(|(key, value)| {
-            unsafe {
-                map::map_iterator_next(self.env.as_c_arg(), &mut self.iter);
-            }
-            (NifTerm::new(self.env, key),
-             NifTerm::new(self.env, value))
-        })
+        map::map_iterator_get_pair(self.env.raw(), &mut self.iter)
+            .map(|(key, value)| {
+                map::map_iterator_next(self.env.raw(), &mut self.iter);
+                (NifTerm::new(self.env, key),
+                 NifTerm::new(self.env, value))
+            })
     }
 }
 
