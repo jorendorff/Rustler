@@ -1,5 +1,5 @@
 use rustler::{NifEnv, NifTerm, NifError, NifEncoder, NifResult};
-use rustler::list::NifListIterator;
+use rustler::types::list::NifListIterator;
 
 pub fn sum_list<'a>(env: NifEnv<'a>, args: &Vec<NifTerm<'a>>) -> NifResult<NifTerm<'a>> {
     let iter: NifListIterator = try!(args[0].decode());

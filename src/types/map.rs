@@ -1,6 +1,6 @@
 //! Utilities used to access and create Erlang maps.
 
-use super::{ NifEnv, NifTerm, NifResult, NifError, NifDecoder };
+use ::{ NifEnv, NifTerm, NifResult, NifError, NifDecoder };
 use ::wrapper::map;
 
 pub fn map_new<'a>(env: NifEnv<'a>) -> NifTerm<'a> {

@@ -1,5 +1,5 @@
-use super::{ NifEnv, NifTerm, NifError };
-use wrapper::RawNifTerm;
+use ::{ NifEnv, NifTerm, NifError };
+use ::wrapper::RawNifTerm;
 
 pub fn get_tuple<'a>(term: NifTerm<'a>) -> Result<Vec<NifTerm<'a>>, NifError> {
     let env = term.get_env();

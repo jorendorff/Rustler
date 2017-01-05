@@ -1,6 +1,6 @@
 use rustler::{NifEnv, NifTerm, NifEncoder, NifResult};
-use rustler::map::NifMapIterator;
-use rustler::tuple::make_tuple;
+use rustler::types::map::NifMapIterator;
+use rustler::types::tuple::make_tuple;
 
 pub fn sum_map_values<'a>(env: NifEnv<'a>, args: &Vec<NifTerm<'a>>) -> NifResult<NifTerm<'a>> {
     let iter: NifMapIterator = args[0].decode()?;

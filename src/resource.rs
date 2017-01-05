@@ -159,9 +159,9 @@ macro_rules! resource_struct_init {
         {
             static mut STRUCT_TYPE: Option<::rustler::resource::NifResourceType<$struct_name>> = None;
 
-            let temp_struct_type = 
+            let temp_struct_type =
                 match ::rustler::resource::open_struct_resource_type::<$struct_name>(
-                    $env, 
+                    $env,
                     stringify!($struct_name),
                     ::rustler::wrapper::nif_interface::NIF_RESOURCE_FLAGS::ERL_NIF_RT_CREATE
                     ) {

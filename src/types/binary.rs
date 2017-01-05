@@ -1,7 +1,8 @@
-use super::{ NifEnv, NifError, NifResult, NifTerm, NifEncoder, NifDecoder };
+use super::{ NifEnv, NifResult, NifTerm, NifEncoder, NifDecoder };
+use ::NifError;
 use std::mem;
 use std::ptr;
-use wrapper::binary::{self, ErlNifBinary};
+use ::wrapper::binary::{self, ErlNifBinary};
 
 pub struct OwnedNifBinary {
     inner: ErlNifBinary,
